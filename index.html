@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#f5f6f2" />
+  <title>UD 藥車復核</title>
+  <style>
+    :root{
+      --bg:#f5f6f2;
+      --card:#ffffff;
+      --text:#232620;
+      --muted:#747a71;
+      --border:#dcded8;
+      --accent:#617564;
+      --accent-soft:#e9efe9;
+      --panel:#e9ebe6;
+      --warn:#795f46;
+      --warn-bg:#f5eee5;
+      --closed-bg:#efefec;
+    }
+    *{box-sizing:border-box}
+    html{background:var(--bg)}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+      -webkit-tap-highlight-color:transparent;
+    }
+    button{font:inherit}
+    main{width:min(760px,100%);margin:0 auto;padding:18px 14px 40px}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+    h1{font-size:24px;line-height:1.25;margin:0 0 4px;font-weight:850}
+    .date,.sub,.foot,.count{color:var(--muted)}
+    .badge{
+      display:inline-flex;align-items:center;min-height:30px;padding:5px 10px;border-radius:999px;
+      background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:13px;white-space:nowrap
+    }
+    .tabs{display:grid;gap:8px;margin-bottom:12px}
+    #pharmacyTabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .tab,.action{
+      min-height:46px;border:1px solid var(--border);border-radius:13px;background:var(--card);
+      color:var(--text);font-weight:780;padding:9px 8px;cursor:pointer
+    }
+    .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .tab:focus-visible,.action:focus-visible,.cart:focus-visible{outline:3px solid rgba(97,117,100,.26);outline-offset:2px}
+    .summary{
+      background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px
+    }
+    .summaryrow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .title{font-size:18px;font-weight:850;line-height:1.35}
+    .sub{font-size:13px;margin-top:3px;line-height:1.45}
+    .progress{font-weight:850;white-space:nowrap}
+    .bar{height:8px;border-radius:99px;background:#e4e6e1;overflow:hidden;margin-top:12px}
+    .bar>div{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .18s ease}
+    .notice{
+      display:none;border-radius:13px;padding:11px 12px;margin:0 0 14px;
+      background:var(--warn-bg);color:var(--warn);font-size:13px;line-height:1.5
+    }
+    .notice.show{display:block}
+    #groups{display:grid;gap:15px}
+    .grouphead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .unit{font-size:13px;font-weight:850;background:var(--panel);border-radius:9px;padding:5px 9px}
+    .count{font-size:12px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .cart{
+      min-height:54px;border:1px solid var(--border);border-radius:13px;background:var(--card);
+      color:var(--text);padding:10px 11px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer
+    }
+    .dot{
+      width:24px;height:24px;border-radius:50%;border:2px solid #b9beb5;display:grid;place-items:center;
+      flex:0 0 auto;font-size:14px;font-weight:900
+    }
+    .name{font-size:16px;font-weight:780;min-width:0;word-break:break-word}
+    .cart.done{opacity:.48}
+    .cart.done .name{text-decoration:line-through}
+    .cart.done .dot{background:var(--accent);border-color:var(--accent);color:#fff}
+    .cart.closed{opacity:.58;background:var(--closed-bg);cursor:default}
+    .cart.closed .name{text-decoration:line-through}
+    .closedtag{
+      margin-left:auto;font-size:11px;font-weight:800;border:1px solid #cfd1cc;border-radius:999px;padding:4px 7px;white-space:nowrap
+    }
+    .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;padding-top:15px;border-top:1px solid var(--border)}
+    .action.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .foot{font-size:12px;line-height:1.55;margin-top:13px}
+    .empty{text-align:center;padding:20px;border:1px dashed var(--border);border-radius:14px;color:var(--muted);background:var(--card)}
+    @media(min-width:560px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(max-width:400px){h1{font-size:21px}.tab{padding:8px 4px}}
+  </style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>UD 藥車復核</h1>
+      <div id="dateText" class="date"></div>
+    </div>
+    <span id="autoBadge" class="badge">自動選班別</span>
+  </header>
+
+  <nav id="pharmacyTabs" class="tabs" aria-label="選擇藥局">
+    <button class="tab" data-pharmacy="13f" type="button">十三樓</button>
+    <button class="tab" data-pharmacy="c2" type="button">中二</button>
+    <button class="tab" data-pharmacy="sy" type="button">思源樓</button>
+  </nav>
+
+  <section class="summary">
+    <div class="summaryrow">
+      <div>
+        <div id="scheduleTitle" class="title"></div>
+        <div id="scheduleSub" class="sub"></div>
+      </div>
+      <div id="progressText" class="progress" aria-live="polite"></div>
+    </div>
+    <div class="bar"><div id="progressBar"></div></div>
+  </section>
+
+  <div id="notice" class="notice"></div>
+  <nav id="modeTabs" class="tabs" aria-label="手動切換班別"></nav>
+  <section id="groups"></section>
+
+  <div class="actions">
+    <button id="completeAll" class="action primary" type="button">全部完成</button>
+    <button id="clearAll" class="action" type="button">清除今日勾選</button>
+    <button id="restoreAuto" class="action" type="button">恢復自動班別</button>
+  </div>
+
+  <p class="foot">
+    勾選進度只儲存在目前這台裝置的瀏覽器中；同一天重新開啟仍會保留，跨日後自動清空。
+  </p>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const DATA = {
+    "13f": {
+      name: "十三樓藥局",
+      closed: ["154", "RCUA"],
+      schedules: {
+        mwf: {
+          label: "一・三・五",
+          code: "UD W135",
+          groups: [
+            ["U1", ["121","122","123","124"]],
+            ["U2", ["161","162+SCU","163","154"]],
+            ["U3", ["184"]],
+            ["U4", ["144","181","211"]],
+            ["U5", ["134"]]
+          ]
+        },
+        tt: {
+          label: "二・四",
+          code: "UD W24",
+          groups: [
+            ["U3", ["171","172","173","184","NCU"]],
+            ["U4", ["141","142","RCUA","181"]],
+            ["U5", ["111","134","193","194+BU","212"]],
+            ["U6", ["114","191"]]
+          ]
+        },
+        sat: {
+          label: "六",
+          code: "UD W6",
+          groups: [
+            ["U1", ["121","122","123","124","183"]],
+            ["U4", ["144","211"]],
+            ["U2", ["161","162+SCU","163","154","182"]],
+            ["U5", ["192"]]
+          ]
+        }
+      }
+    },
+
+    "c2": {
+      name: "中二藥局",
+      closed: [],
+      schedules: {
+        mwf: {
+          label: "一・三・五",
+          code: "UD W135",
+          groups: [
+            ["U1", ["71","73","91","92","103"]],
+            ["U2", ["93","PICU"]],
+            ["U3", ["ICUC","72","TICU"]],
+            ["U4", ["82"]],
+            ["U5", ["ICUA","101"]],
+            ["A", ["1RR"]]
+          ]
+        },
+        tt: {
+          label: "二・四",
+          code: "UD W24",
+          groups: [
+            ["U2", ["62","ICN+NICU","61"]],
+            ["U3", ["52","102"]],
+            ["U4", ["81","104","113","ICUB"]],
+            ["U5", ["51","63","112"]],
+            ["A", ["1RR"]]
+          ]
+        }
+      }
+    },
+
+    "sy": {
+      name: "思源樓藥局",
+      closed: [],
+      schedules: {
+        mwf: {
+          label: "一・三・五",
+          code: "UD W135",
+          groups: [
+            ["U2", ["CVSB","67","87","88","108"]],
+            ["U4", ["RCC"]],
+            ["U5", ["CCU","107"]],
+            ["A", ["E005"]]
+          ]
+        },
+        tt: {
+          label: "二・四",
+          code: "UD W24",
+          groups: [
+            ["U2", ["CVSA","CVSB","2RR","88"]],
+            ["U4", ["RCUB","20","30","40"]],
+            ["U5", ["107","117"]],
+            ["A", ["E005"]]
+          ]
+        },
+        sat: {
+          label: "六",
+          code: "UD W6",
+          groups: [
+            ["U2", ["CVSA","CVSB","2RR","67","88"]],
+            ["U4", ["RCUB","20","30","40"]],
+            ["U5", ["107","117"]],
+            ["A", ["E005"]]
+          ]
+        }
+      }
+    }
+  };
+
+  const STORAGE_KEY = "ud-cart-review-final-v1";
+  const WEEKDAYS = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"];
+
+  const el = {
+    date: document.getElementById("dateText"),
+    badge: document.getElementById("autoBadge"),
+    title: document.getElementById("scheduleTitle"),
+    sub: document.getElementById("scheduleSub"),
+    progress: document.getElementById("progressText"),
+    bar: document.getElementById("progressBar"),
+    notice: document.getElementById("notice"),
+    modes: document.getElementById("modeTabs"),
+    groups: document.getElementById("groups"),
+    completeAll: document.getElementById("completeAll"),
+    clearAll: document.getElementById("clearAll"),
+    restoreAuto: document.getElementById("restoreAuto"),
+    pharmacyButtons: [...document.querySelectorAll("[data-pharmacy]")]
+  };
+
+  function localDateKey(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function formatDate(d = new Date()) {
+    return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日・${WEEKDAYS[d.getDay()]}`;
+  }
+
+  function saveState(s = state) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    } catch (_) {}
+  }
+
+  function loadState() {
+    let s = {
+      date: localDateKey(),
+      pharmacy: "13f",
+      manualMode: {},
+      done: {}
+    };
+
+    try {
+      s = { ...s, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") };
+    } catch (_) {}
+
+    s.manualMode = s.manualMode || {};
+    s.done = s.done || {};
+
+    if (!DATA[s.pharmacy]) s.pharmacy = "13f";
+
+    // 換日後保留上次選的藥局，但清空昨日勾選與手動班別。
+    if (s.date !== localDateKey()) {
+      s = {
+        date: localDateKey(),
+        pharmacy: s.pharmacy,
+        manualMode: {},
+        done: {}
+      };
+      saveState(s);
+    }
+    return s;
+  }
+
+  let state = loadState();
+
+  function autoMode(pharmacyKey = state.pharmacy) {
+    const day = new Date().getDay();
+    const schedules = DATA[pharmacyKey].schedules;
+
+    if ([1,3,5].includes(day) && schedules.mwf) return "mwf";
+    if ([2,4].includes(day) && schedules.tt) return "tt";
+    if (day === 6 && schedules.sat) return "sat";
+    return null;
+  }
+
+  function currentMode() {
+    const manual = state.manualMode[state.pharmacy];
+    if (manual && DATA[state.pharmacy].schedules[manual]) return manual;
+    return autoMode();
+  }
+
+  function bucketKey() {
+    const mode = currentMode();
+    return mode ? `${state.pharmacy}|${mode}` : null;
+  }
+
+  function doneSet() {
+    const key = bucketKey();
+    return new Set(key ? (state.done[key] || []) : []);
+  }
+
+  function saveDone(set) {
+    const key = bucketKey();
+    if (!key) return;
+    state.done[key] = [...set];
+    saveState();
+  }
+
+  function itemKey(unit, cart) {
+    return `${unit}|${cart}`;
+  }
+
+  function activeKeys(schedule) {
+    const closed = new Set(DATA[state.pharmacy].closed);
+    return schedule.groups.flatMap(([unit, carts]) =>
+      carts
+        .filter(cart => !closed.has(cart))
+        .map(cart => itemKey(unit, cart))
+    );
+  }
+
+  function setNotice(text = "") {
+    el.notice.textContent = text;
+    el.notice.classList.toggle("show", Boolean(text));
+  }
+
+  function renderModeTabs() {
+    const schedules = DATA[state.pharmacy].schedules;
+    const mode = currentMode();
+    const entries = Object.entries(schedules);
+
+    el.modes.innerHTML = "";
+    el.modes.style.gridTemplateColumns = `repeat(${entries.length}, minmax(0,1fr))`;
+
+    for (const [key, schedule] of entries) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tab" + (key === mode ? " active" : "");
+      b.textContent = schedule.label;
+
+      b.addEventListener("click", () => {
+        state.manualMode[state.pharmacy] = key;
+        saveState();
+        render();
+      });
+
+      el.modes.appendChild(b);
+    }
+  }
+
+  function render() {
+    const now = new Date();
+    const pharmacy = DATA[state.pharmacy];
+    const mode = currentMode();
+
+    el.date.textContent = formatDate(now);
+
+    el.pharmacyButtons.forEach(button => {
+      const active = button.dataset.pharmacy === state.pharmacy;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+
+    renderModeTabs();
+
+    const automatic = autoMode();
+    const manual = state.manualMode[state.pharmacy];
+    el.badge.textContent = manual && manual !== automatic ? "已手動切換" : "自動選班別";
+
+    if (!mode) {
+      el.title.textContent = `${pharmacy.name}｜今日未設定`;
+      el.sub.textContent = "請手動選擇上方班別";
+      el.progress.textContent = "—";
+      el.bar.style.width = "0%";
+      el.groups.innerHTML = '<div class="empty">今天沒有可自動套用的分配表。</div>';
+      el.completeAll.disabled = true;
+      el.clearAll.disabled = true;
+
+      if (state.pharmacy === "c2" && now.getDay() === 6) {
+        setNotice("中二藥局目前尚未提供星期六分配表。");
+      } else if (now.getDay() === 0) {
+        setNotice("目前沒有星期日分配表。");
+      } else {
+        setNotice("");
+      }
+      return;
+    }
+
+    el.completeAll.disabled = false;
+    el.clearAll.disabled = false;
+
+    const schedule = pharmacy.schedules[mode];
+    const done = doneSet();
+    const active = activeKeys(schedule);
+    const completed = active.filter(key => done.has(key)).length;
+
+    el.title.textContent = `${pharmacy.name}｜${schedule.label}`;
+    el.sub.textContent = schedule.code;
+    el.progress.textContent =
+      completed === active.length && active.length
+        ? `✓ ${completed}/${active.length}`
+        : `${completed}/${active.length}`;
+    el.bar.style.width = active.length
+      ? `${Math.round((completed / active.length) * 100)}%`
+      : "0%";
+
+    if (state.pharmacy === "13f") {
+      setNotice("154、RCUA 目前為「已關」，不列入今日完成數。");
+    } else if (state.pharmacy === "sy" && mode === "sat") {
+      setNotice("星期六：另需協助送藥至中二＋塞藥包。");
+    } else {
+      setNotice("");
+    }
+
+    el.groups.innerHTML = "";
+    const closed = new Set(pharmacy.closed);
+
+    for (const [unit, carts] of schedule.groups) {
+      const section = document.createElement("section");
+
+      const activeCarts = carts.filter(cart => !closed.has(cart));
+      const unitCompleted = activeCarts.filter(cart =>
+        done.has(itemKey(unit, cart))
+      ).length;
+
+      const header = document.createElement("div");
+      header.className = "grouphead";
+      header.innerHTML = `
+        <span class="unit">${unit}</span>
+        <span class="count">${unitCompleted}/${activeCarts.length}</span>
+      `;
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+
+      for (const cart of carts) {
+        const isClosed = closed.has(cart);
+        const key = itemKey(unit, cart);
+        const isDone = done.has(key);
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className =
+          "cart" + (isDone ? " done" : "") + (isClosed ? " closed" : "");
+        button.disabled = isClosed;
+        button.setAttribute("aria-pressed", isDone ? "true" : "false");
+
+        button.innerHTML = `
+          <span class="dot">${isDone ? "✓" : ""}</span>
+          <span class="name">${cart}</span>
+          ${isClosed ? '<span class="closedtag">已關</span>' : ""}
+        `;
+
+        if (!isClosed) {
+          button.addEventListener("click", () => {
+            const next = doneSet();
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            saveDone(next);
+            render();
+          });
+        }
+
+        grid.appendChild(button);
+      }
+
+      section.append(header, grid);
+      el.groups.appendChild(section);
+    }
+  }
+
+  el.pharmacyButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      state.pharmacy = button.dataset.pharmacy;
+      saveState();
+      render();
+    });
+  });
+
+  el.completeAll.addEventListener("click", () => {
+    const mode = currentMode();
+    if (!mode) return;
+    const schedule = DATA[state.pharmacy].schedules[mode];
+    saveDone(new Set(activeKeys(schedule)));
+    render();
+  });
+
+  el.clearAll.addEventListener("click", () => {
+    saveDone(new Set());
+    render();
+  });
+
+  el.restoreAuto.addEventListener("click", () => {
+    delete state.manualMode[state.pharmacy];
+    saveState();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
